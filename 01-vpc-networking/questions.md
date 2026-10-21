@@ -566,11 +566,3 @@ router, `.2` DNS, `.3` future use) and the last (`.255` broadcast). `256 − 5 =
 
 - B/C — the reservation is **per subnet**, not a per-VPC or monitoring reservation.
 </details>
-
----
-
-## Notes / mistakes I made
-
-> Record topics where you often make mistakes, so you can come back to them.
-
--
