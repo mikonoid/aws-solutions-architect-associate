@@ -77,19 +77,54 @@
 | | Security Group | Network ACL (NACL) |
 |---|---|---|
 | Level | **ENI / instance** level | **subnet** level |
+| Scope | applies only to resources it's attached to | applies to **all** resources in the subnet |
 | Stateful? | **Stateful** (response allowed automatically) | **Stateless** (needs explicit inbound+outbound) |
 | Rules | **allow** only | **allow and deny** |
-| Rule evaluation | all rules together | **by rule number order**, first match wins |
+| Rule evaluation | all rules together (any match = allow) | **by rule number order**, first match wins |
+| Can reference | other security groups, prefix lists, CIDRs | CIDRs only |
+| How many per resource | up to 5 SGs per ENI (soft) | exactly **1 NACL per subnet** (a NACL can cover many subnets) |
 | Defaults | deny all inbound, allow all outbound | default NACL: allow all; custom NACL: deny all |
+| Typical use | primary access control (the firewall you manage) | coarse subnet guardrail / explicit IP blocking |
 
 > Note: To **explicitly block** a specific IP (e.g. an attacker) you need a **NACL deny**,
 > because SG can't deny.
 > Note: For stateless NACL, don't forget **ephemeral ports** (1024–65535) for return traffic.
 
+### Stateful vs stateless in practice
+
+- **SG (stateful)**: allow inbound TCP 443 → the response goes back out automatically. You do
+  **not** need a matching outbound rule.
+- **NACL (stateless)**: allow inbound TCP 443 **and** allow outbound on **ephemeral ports**
+  (1024–65535) for the reply, or the response is dropped. The ephemeral range depends on the
+  client OS (Linux 32768–60999, Windows 49152–65535) — allowing 1024–65535 covers all.
+
+### When to use each
+
+- Use **SGs as the primary control** — simpler, stateful, support SG-to-SG references for
+  multi-tier "chain of trust" (ALB SG → app SG → DB SG).
+- Add **NACLs as a secondary / defense-in-depth layer** when you must **deny** specific IPs or
+  enforce a subnet-wide guardrail regardless of instance-level SGs.
+- Overlapping SG rules aren't "duplicates" — SGs are cumulative (a `/32` inside an allowed `/28`
+  is simply already covered).
+
 - **SG referencing**: a security group rule can reference **another security group** (same region), enabling
   multi-tier "chain of trust": ALB SG → app SG → DB SG, instead of hardcoding IPs.
 - **NACL rule numbers**: `1–32766`, lower number = higher precedence, first match wins; AWS convention is
   increments of **100**. The final `*` rule denies anything unmatched. Custom NACL denies all until you add rules.
+
+### NACLs do NOT filter certain traffic
+
+Regardless of your NACL rules, AWS never filters these (they always pass):
+
+- Amazon DNS (the VPC resolver). A **custom DNS server** you run yourself **is** filtered by NACLs.
+- DHCP traffic
+- Amazon EC2 instance metadata (`169.254.169.254`)
+- Amazon ECS task metadata endpoints
+- License activation for Windows instances
+- Amazon Time Sync Service (`169.254.169.123`)
+- Reserved IP addresses used by the default VPC router
+
+> Note: This overlaps with VPC Flow Logs, which also don't capture Amazon DNS, DHCP, or metadata traffic.
 
 ---
 
@@ -151,11 +186,26 @@ Let you reach AWS services **without going to the internet** (no IGW/NAT).
 - A VPC has a built-in DNS resolver at `VPC base +2` (`169.254.169.253` / `.2`).
 - VPC flags: `enableDnsSupport` and `enableDnsHostnames` — needed for DNS names
   and for **Interface Endpoints** to work via private DNS names.
+- **Hosted zones**:
+  - **Public hosted zone** — routes internet DNS (resolvable publicly).
+  - **Private hosted zone** — resolves names **inside associated VPCs** only (needs both VPC DNS flags on).
+- **Record types**: `A` (IPv4), `AAAA` (IPv6), `CNAME` (not at zone apex), `MX`, `TXT`, `NS`.
+  - **Alias record** — Route 53-specific, free, maps a name (including the **zone apex**) to an AWS
+    resource (ALB, CloudFront, S3 website, API GW). Prefer Alias over CNAME for AWS targets.
 - **Route 53 Resolver**:
   - **Inbound endpoint** — on-prem → resolves AWS DNS.
   - **Outbound endpoint** — AWS → resolves on-prem DNS (conditional forwarding).
-- Route 53 routing policies (more in the DNS topic): Simple, Weighted, Latency,
-  Failover, Geolocation, Geoproximity, Multivalue.
+- **Routing policies** (common exam picks):
+  - **Simple** — one record, no health checks.
+  - **Weighted** — split traffic by percentage (A/B testing, canary).
+  - **Latency** — send users to the lowest-latency region.
+  - **Failover** — active/passive with health checks (primary → secondary on failure).
+  - **Geolocation** — route by user's location (compliance, localized content).
+  - **Geoproximity** — route by geographic distance with a bias to shift traffic.
+  - **Multivalue answer** — return multiple healthy IPs (simple client-side load spreading, not a substitute for an ELB).
+- **Health checks** drive Failover/Multivalue and can monitor endpoints, other health checks, or CloudWatch alarms.
+
+> Note: TTL affects how fast DNS changes propagate. Alias records to AWS resources ignore manual TTL (managed by AWS).
 
 ---
 
