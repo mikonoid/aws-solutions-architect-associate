@@ -20,9 +20,9 @@ My notes, topic deep-dives, and practice questions for the
 | #  | Topic | Status |
 |----|-------|--------|
 | 01 | [VPC & Networking](01-vpc-networking/README.md) | in progress |
-| 02 | [Compute (EC2, ASG, ELB, Lambda, ECS/EKS)](02-compute/README.md) | todo |
+| 02 | [Compute (EC2, ASG, ELB, Lambda, ECS/EKS)](02-compute/README.md) | in progress |
 | 03 | [Storage (S3, EBS, EFS, FSx)](03-storage/README.md) | in progress |
-| 04 | [Databases (RDS, Aurora, DynamoDB, ElastiCache)](04-databases/README.md) | todo |
+| 04 | [Databases (RDS, Aurora, DynamoDB, ElastiCache)](04-databases/README.md) | in progress |
 | 05 | [Security & IAM (IAM, KMS, Secrets, WAF, Shield)](05-security-iam/README.md) | todo |
 | 06 | [Monitoring (CloudWatch, CloudTrail, Config, X-Ray)](06-monitoring/README.md) | todo |
 | 07 | [High Availability & Resilience](07-high-availability/README.md) | todo |
